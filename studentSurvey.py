@@ -2,110 +2,111 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# Define the URL for the dataset
-URL = 'https://raw.githubusercontent.com/aleya566/ass-indv-sv/refs/heads/main/Student%20Insomnia%20and%20Educational%20Outcomes%20Dataset_version-2.csv'
-
-# --- Streamlit App Configuration and Data Loading ---
-
+# --- Configuration for Streamlit Page ---
 st.set_page_config(
     page_title="Sleep Quality vs. Academic Performance",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-st.title("📊 Sleep Quality and Academic Performance Analysis")
-
-@st.cache_data
-def load_data(url):
-    """Loads the dataset from the specified URL."""
+# --- Data Loading ---
+@st.cache_data # Cache the data to prevent re-downloading on every rerun
+def load_data():
+    """Loads the dataset from the URL."""
+    url = 'https://raw.githubusercontent.com/aleya566/ass-indv-sv/refs/heads/main/Student%20Insomnia%20and%20Educational%20Outcomes%20Dataset_version-2.csv'
     try:
         df = pd.read_csv(url)
         return df
     except Exception as e:
         st.error(f"Error loading data: {e}")
-        return pd.DataFrame()
+        return pd.DataFrame() # Return empty DataFrame on error
 
-df = load_data(URL)
+df = load_data()
 
-if not df.empty:
-    st.header("Raw Data Preview")
-    st.write(df.head())
+# --- Application Title and Description ---
+st.title("📊 Sleep Quality vs. Academic Performance Analysis")
+st.markdown("This application visualizes the relationship between self-rated sleep quality and academic performance using a stacked bar chart powered by **Plotly**.")
 
-    # --- Data Preparation for Plotly Visualization ---
+# Check if data was loaded successfully
+if df.empty:
+    st.warning("Could not load the dataset. Please check the URL and internet connection.")
+else:
+    # --- Display Data Head (Optional, but useful) ---
+    st.subheader("Raw Data Preview")
+    st.dataframe(df.head())
 
-    # Create a cross-tabulation of Sleep_Quality and Academic_Performance
-    # Normalize='index' calculates the proportion of Academic_Performance for each Sleep_Quality level
-    cross_tab = pd.crosstab(
-        df['Sleep_Quality'],
-        df['Academic_Performance'],
-        normalize='index'
+    # --- Data Preparation for Plotly (Crosstab equivalent) ---
+    # Define column names based on your original script
+    sleep_quality_col = '6. How would you rate the overall quality of your sleep?'
+    academic_performance_col = '15. How would you rate your overall academic performance (GPA or grades) in the past semester?'
+
+    # 1. Calculate the frequency (crosstab)
+    cross_tab_counts = pd.crosstab(
+        df[sleep_quality_col], 
+        df[academic_performance_col]
+    )
+    
+    # 2. Convert to proportions normalized by 'Sleep Quality' (index)
+    cross_tab_proportion = cross_tab_counts.div(cross_tab_counts.sum(axis=1), axis=0).mul(100)
+    
+    # 3. Reset index and melt the DataFrame for Plotly compatibility
+    plot_df = cross_tab_proportion.reset_index().melt(
+        id_vars=sleep_quality_col, 
+        var_name='Academic Performance', 
+        value_name='Proportion (%)'
     )
 
-    # Reset index to turn the index (Sleep_Quality) into a column
-    # Then unpivot the DataFrame from 'wide' format to 'long' format (melt)
-    # This is often the preferred format for Plotly Express
-    cross_tab_df = cross_tab.reset_index()
+    # Sort the dataframe by the sleep quality column to ensure a logical order in the plot
+    # Assuming 'Poor', 'Fair', 'Good', 'Excellent' is the desired order.
+    # You might need to adjust this list based on the actual unique values in your dataset.
+    sleep_order = ['Poor', 'Fair', 'Good', 'Excellent'] # Example order
+    # Filter for values present in the data and sort
+    present_order = [quality for quality in sleep_order if quality in plot_df[sleep_quality_col].unique()]
+    plot_df[sleep_quality_col] = pd.Categorical(plot_df[sleep_quality_col], categories=present_order, ordered=True)
+    plot_df = plot_df.sort_values(sleep_quality_col)
 
-    # The column names (Academic_Performance levels) are now the values in the variable 'Academic_Performance'
-    # The proportions are in the new 'Proportion' column
-    plot_df = cross_tab_df.melt(
-        id_vars='Sleep_Quality',
-        var_name='Academic_Performance',
-        value_name='Proportion'
-    )
 
-    st.header("Stacked Bar Chart: Sleep Quality vs. Academic Performance")
+    # --- Plotly Visualization ---
+    st.subheader("Stacked Bar Chart: Sleep Quality vs. Academic Performance")
 
-    # --- Plotly Express Visualization ---
-
-    # Create the stacked bar chart using Plotly Express
-    # x: Sleep_Quality categories
-    # y: Proportion (for the height of the bars)
-    # color: Academic_Performance (for stacking and coloring)
-    # text: The proportion value displayed on the bar segments
-    # The barmode='stack' is the default for a column chart in Plotly Express, but explicitly stated for clarity.
     fig = px.bar(
         plot_df,
-        x='Sleep_Quality',
-        y='Proportion',
-        color='Academic_Performance',
-        title='Proportion of Academic Performance within each Sleep Quality Category',
+        x=sleep_quality_col,
+        y='Proportion (%)',
+        color='Academic Performance',
+        title='Relationship between Sleep Quality and Academic Performance (Proportion of each Academic Rating within each Sleep Quality Category)',
         labels={
-            'Sleep_Quality': 'Sleep Quality',
-            'Proportion': 'Proportion of Students',
-            'Academic_Performance': 'Academic Performance'
+            sleep_quality_col: 'Sleep Quality',
+            'Proportion (%)': 'Proportion of Students (%)'
         },
-        category_orders={"Sleep_Quality": sorted(plot_df['Sleep_Quality'].unique())}, # Sort the x-axis categories if needed
-        # Set colors for the categories
-        color_discrete_map={
-            'Excellent': 'green',
-            'Good': 'lightgreen',
-            'Average': 'orange',
-            'Poor': 'red'
-        },
+        barmode='stack', # This ensures a stacked bar chart
+        color_discrete_sequence=px.colors.qualitative.Vivid # Use a visually distinct color scale
     )
-
-    # Customize the layout for better readability
+    
+    # Customize the layout for better readability and presentation
     fig.update_layout(
-        xaxis={'title': 'Sleep Quality'},
-        yaxis={
-            'title': 'Proportion',
-            'tickformat': '.0%', # Format y-axis ticks as percentages
-        },
-        legend_title_text='Academic Performance',
-        hovermode="x unified"
-    )
-
-    # Optionally add text labels on the bars for the proportions
-    # This requires adding the proportion to the text argument and configuring the text position
-    fig.update_traces(
-        texttemplate='%{y:.1%}', # Display proportion as percentage with one decimal place
-        textposition='inside',
-        insidetextfont={'color': 'black', 'size': 12}
+        xaxis_title="Overall Quality of Sleep",
+        yaxis_title="Proportion of Students (%)",
+        legend_title="Academic Performance",
+        # Optionally, ensure y-axis goes up to 100 for proportions
+        yaxis=dict(range=[0, 100]), 
+        hovermode="x unified" # Nice interactive feature for Plotly
     )
 
     # Display the Plotly figure in Streamlit
     st.plotly_chart(fig, use_container_width=True)
 
-else:
-    st.warning("Could not load data. Please check the URL and network connection.")
+    # --- Explanation ---
+    st.markdown("""
+    ---
+    ### Interpretation
+    Each bar represents a category of **Sleep Quality**. The segments within each bar show the **proportion** of students in that sleep quality group who reported a specific **Academic Performance** rating.
+    This chart is **interactive**:
+    * **Hover** over the bars to see exact proportions.
+    * **Click** on legend items to hide/show specific academic performance categories.
+    * **Zoom** and **Pan** the chart using the tools on the top-right.
+    """)
+
+# --- To Run the App ---
+# 1. Save the code above as a Python file (e.g., app.py).
+# 2. Run it from your terminal using: streamlit run app.py
