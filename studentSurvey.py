@@ -64,7 +64,8 @@ fig_stress_year = px.bar(
     title='Academic Stress Levels by Year of Study',
     labels={'Year of Study': 'Year of Study', 'Proportion (%)': 'Proportion (%)'},
     category_orders={"Stress Level": stress_order},
-    color_discrete_sequence=px.colors.sequential.Flare_r # Reverse Flare for a similar feel to 'flare'
+    # --- FIX: Changed Flare_r to Plasma (a valid sequential scale) ---
+    color_discrete_sequence=px.colors.sequential.Plasma 
 )
 
 # Customize the layout
@@ -99,7 +100,8 @@ fig_sleep_gender = px.box(
     color='Gender',
     title='Average Sleep Hours by Gender',
     category_orders={"Gender": ['Male', 'Female']},
-    color_discrete_sequence=px.colors.sequential.Plotly3 # Using a suitable Plotly sequence
+    # Using a suitable Plotly sequence
+    color_discrete_sequence=px.colors.sequential.Plotly3 
 )
 
 # Customize the layout
@@ -144,7 +146,8 @@ fig_sleep_perf = px.bar(
         "Sleep Quality": sleep_quality_order,
         "Academic Performance": performance_order
     },
-    color_discrete_sequence=px.colors.sequential.Plasma # Another suitable sequential colormap
+    # Using a suitable sequential colormap
+    color_discrete_sequence=px.colors.sequential.Plasma 
 )
 
 # Customize the layout
