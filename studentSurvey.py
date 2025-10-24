@@ -3,161 +3,162 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-# Set Streamlit page configuration
-st.set_page_config(
-    page_title="Student Sleep and Educational Outcomes Analysis",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Set the title and initial configuration for the Streamlit app
+st.set_page_config(layout="wide")
+st.title('Student Sleep, Stress, and Educational Outcomes Analysis')
+st.markdown("This dashboard explores the distribution of key sleep and stress factors among students across different years of study and genders using interactive Plotly charts.")
 
-# --- Data Loading and Caching ---
 @st.cache_data
 def load_data():
-    """Loads the dataset from the URL."""
+    """Loads the dataset from the specified URL."""
     url = 'https://raw.githubusercontent.com/aleya566/ass-indv-sv/refs/heads/main/Student%20Insomnia%20and%20Educational%20Outcomes%20Dataset.csv'
-    df = pd.read_csv(url)
-    return df
+    try:
+        df = pd.read_csv(url)
+        # Rename long columns for easier plotting
+        df.rename(columns={
+            '1. What is your year of study?': 'Year_of_Study',
+            '2. What is your gender?': 'Gender',
+            '4. On average, how many hours of sleep do you get on a typical day?': 'Avg_Sleep_Hours',
+            '6. How would you rate the overall quality of your sleep?': 'Sleep_Quality',
+            '14. How would you describe your stress levels related to academic workload?': 'Academic_Stress_Level',
+            '15. How would you rate your overall academic performance (GPA or grades) in the past semester?': 'Academic_Performance'
+        }, inplace=True)
+        return df
+    except Exception as e:
+        st.error(f"Error loading data: {e}")
+        return pd.DataFrame()
 
 df = load_data()
 
-# --- Streamlit App Title and Introduction ---
-st.title("📊 Student Sleep and Educational Outcomes Analysis")
-st.markdown("""
-This application visualizes key sleep and stress factors among students,
-exploring their distribution across different years of study and genders,
-and their relationship with academic performance.
-""")
-
-st.markdown("---")
-
-# --- Display Data Section ---
-if st.checkbox("Show Raw Data Sample", False):
-    st.subheader("Data Preview")
+if not df.empty:
+    st.header("Raw Data Preview")
     st.dataframe(df.head())
-    st.info(f"The dataset has **{len(df)}** rows and **{len(df.columns)}** columns.")
 
-st.markdown("---")
+    st.markdown("---")
 
-# --- 1. Stacked Bar Chart – Stress Levels by Year of Study (Plotly Express) ---
-st.header("1. Academic Stress Levels by Year of Study")
-st.markdown("""
-This plot shows the **proportion of students** in each **year of study** who reported different levels of academic stress.
-""")
+    ## Interactive Visualizations with Plotly
 
-# Crosstab equivalent for Plotly
-stress_year_crosstab = pd.crosstab(
-    df['1. What is your year of study?'],
-    df['14. How would you describe your stress levels related to academic workload?'],
-    normalize='index'
-).mul(100).round(2).stack().reset_index(name='Proportion (%)')
-stress_year_crosstab.columns = ['Year of Study', 'Stress Level', 'Proportion (%)']
+    # 1. Stacked Bar Chart – Academic Stress Levels by Year of Study
+    st.header("Academic Stress Levels by Year of Study")
+    st.markdown("This plot shows the proportion of students in each year of study who reported different levels of academic stress.")
 
-# Define the order for better visualization
-stress_order = ['Extremely Low', 'Low', 'Moderate', 'High', 'Extremely High']
+    stress_year_crosstab = pd.crosstab(df['Year_of_Study'], df['Academic_Stress_Level'], normalize='index').reset_index()
+    stress_year_crosstab_melt = stress_year_crosstab.melt(
+        id_vars=['Year_of_Study'],
+        var_name='Stress Level',
+        value_name='Proportion'
+    )
 
-# Create the Plotly figure (Stacked Bar Chart)
-fig_stress_year = px.bar(
-    stress_year_crosstab,
-    x='Year of Study',
-    y='Proportion (%)',
-    color='Stress Level',
-    title='Academic Stress Levels by Year of Study',
-    labels={'Year of Study': 'Year of Study', 'Proportion (%)': 'Proportion (%)'},
-    category_orders={"Stress Level": stress_order},
-    # --- FIX: Changed Flare_r to Plasma (a valid sequential scale) ---
-    color_discrete_sequence=px.colors.sequential.Plasma 
-)
+    # Define a color sequence
+    color_sequence_stress = px.colors.sequential.Inferno
+    # Use go.Bar for better control over the stacked bar chart creation, similar to the matplotlib version
+    fig_stress = go.Figure()
 
-# Customize the layout
-fig_stress_year.update_layout(
-    xaxis={'tickangle': 45},
-    legend_title_text='Stress Level',
-    bargap=0.1
-)
+    # Get unique stress levels for iterating and stacking
+    stress_levels = df['Academic_Stress_Level'].unique()
+    
+    # Sort stress levels for consistent stacking (e.g., from low to high stress)
+    stress_levels_order = sorted(stress_levels, key=lambda x: ['Low', 'Moderate', 'High', 'Very High'].index(x) if x in ['Low', 'Moderate', 'High', 'Very High'] else 99)
+    
+    colors = px.colors.qualitative.Plotly[:len(stress_levels_order)] # Using a qualitative set for distinct categories
 
-st.plotly_chart(fig_stress_year, use_container_width=True)
+    for i, level in enumerate(stress_levels_order):
+        subset = stress_year_crosstab_melt[stress_year_crosstab_melt['Stress Level'] == level]
+        fig_stress.add_trace(go.Bar(
+            x=subset['Year_of_Study'],
+            y=subset['Proportion'],
+            name=level,
+            marker_color=colors[i] # Assign a distinct color
+        ))
 
-st.markdown("---")
+    fig_stress.update_layout(
+        barmode='stack',
+        title='Academic Stress Levels by Year of Study',
+        xaxis_title='Year of Study',
+        yaxis_title='Proportion',
+        legend_title='Stress Level',
+        height=500
+    )
 
-# --- 2. Box Plot – Sleep Hours by Gender (Plotly Express) ---
-st.header("2. Average Sleep Hours by Gender")
-st.markdown("""
-This **box plot** visualizes the **distribution** of average sleep hours for male and female students,
-showing median, quartiles, and outliers.
-""")
+    st.plotly_chart(fig_stress, use_container_width=True)
 
-# Rename columns for simpler plotting
-df_sleep_gender = df.rename(columns={
-    '2. What is your gender?': 'Gender',
-    '4. On average, how many hours of sleep do you get on a typical day?': 'Average Sleep Hours'
-})
+    st.markdown("---")
 
-# Create the Plotly figure (Box Plot)
-fig_sleep_gender = px.box(
-    df_sleep_gender,
-    x='Gender',
-    y='Average Sleep Hours',
-    color='Gender',
-    title='Average Sleep Hours by Gender',
-    category_orders={"Gender": ['Male', 'Female']},
-    # Using a suitable Plotly sequence
-    color_discrete_sequence=px.colors.sequential.Plotly3 
-)
+    # 2. Box Plot – Average Sleep Hours by Gender
+    st.header("Average Sleep Hours by Gender")
+    st.markdown("This box plot visualizes the distribution of average sleep hours for male and female students.")
 
-# Customize the layout
-fig_sleep_gender.update_traces(boxpoints='all', jitter=0.3, pointpos=-1.8) # Show all points as well
-fig_sleep_gender.update_layout(
-    xaxis_title='Gender',
-    yaxis_title='Average Sleep Hours',
-    showlegend=False
-)
+    # Convert to numeric, coercing errors to NaN for cleaner visualization
+    df['Avg_Sleep_Hours'] = pd.to_numeric(df['Avg_Sleep_Hours'], errors='coerce')
+    df_clean_sleep = df.dropna(subset=['Avg_Sleep_Hours', 'Gender'])
 
-st.plotly_chart(fig_sleep_gender, use_container_width=True)
+    # Ensure correct order for the x-axis
+    gender_order = ['Male', 'Female']
+    df_clean_sleep['Gender'] = pd.Categorical(df_clean_sleep['Gender'], categories=gender_order, ordered=True)
+    df_clean_sleep.sort_values('Gender', inplace=True)
+    
+    # Use Plotly Express for the box plot
+    fig_sleep = px.box(
+        df_clean_sleep,
+        x='Gender',
+        y='Avg_Sleep_Hours',
+        color='Gender', # Color the boxes by gender
+        category_orders={"Gender": gender_order},
+        title='Average Sleep Hours by Gender',
+        labels={'Avg_Sleep_Hours': 'Average Sleep Hours', 'Gender': 'Gender'},
+        color_discrete_sequence=px.colors.sequential.Agsunset, # A palette for distinct colors
+        height=500
+    )
 
-st.markdown("---")
+    st.plotly_chart(fig_sleep, use_container_width=True)
 
-# --- 3. Stacked Bar Chart - Sleep Quality vs Academic Performance (Plotly Express) ---
-st.header("3. Relationship between Sleep Quality and Academic Performance")
-st.markdown("""
-This plot shows the **relationship** between self-reported **sleep quality** and **academic performance**.
-""")
+    st.markdown("---")
 
-# Crosstab equivalent for Plotly
-cross_tab_perf = pd.crosstab(
-    df['6. How would you rate the overall quality of your sleep?'],
-    df['15. How would you rate your overall academic performance (GPA or grades) in the past semester?'],
-    normalize='index'
-).mul(100).round(2).stack().reset_index(name='Proportion (%)')
-cross_tab_perf.columns = ['Sleep Quality', 'Academic Performance', 'Proportion (%)']
+    # 3. Stacked Bar Chart - Sleep Quality vs Academic Performance
+    st.header("Relationship between Sleep Quality and Academic Performance")
+    st.markdown("This plot shows the relationship between self-reported sleep quality and academic performance.")
 
-# Define the order for better visualization
-sleep_quality_order = ['Very Poor', 'Poor', 'Neutral', 'Good', 'Very Good']
-performance_order = ['Poor', 'Fair', 'Good', 'Excellent']
+    cross_tab_perf = pd.crosstab(df['Sleep_Quality'], df['Academic_Performance'], normalize='index').reset_index()
+    cross_tab_perf_melt = cross_tab_perf.melt(
+        id_vars=['Sleep_Quality'],
+        var_name='Academic Performance',
+        value_name='Proportion'
+    )
 
-# Create the Plotly figure (Stacked Bar Chart)
-fig_sleep_perf = px.bar(
-    cross_tab_perf,
-    x='Sleep Quality',
-    y='Proportion (%)',
-    color='Academic Performance',
-    title='Relationship between Sleep Quality and Academic Performance',
-    labels={'Sleep Quality': 'Sleep Quality', 'Proportion (%)': 'Proportion (%)'},
-    category_orders={
-        "Sleep Quality": sleep_quality_order,
-        "Academic Performance": performance_order
-    },
-    # Using a suitable sequential colormap
-    color_discrete_sequence=px.colors.sequential.Plasma 
-)
+    fig_perf = go.Figure()
+    
+    # Define a consistent order for performance levels (e.g., from lowest to highest)
+    performance_levels_order = ['Poor', 'Fair', 'Good', 'Excellent']
+    
+    # Filter performance levels present in the data and sort
+    performance_levels_present = [level for level in performance_levels_order if level in df['Academic_Performance'].unique()]
+    
+    # Using a distinct color palette
+    colors_perf = px.colors.qualitative.Vivid[:len(performance_levels_present)]
 
-# Customize the layout
-fig_sleep_perf.update_layout(
-    xaxis={'tickangle': 45},
-    legend_title_text='Academic Performance',
-    bargap=0.1
-)
+    for i, level in enumerate(performance_levels_present):
+        subset = cross_tab_perf_melt[cross_tab_perf_melt['Academic Performance'] == level]
+        fig_perf.add_trace(go.Bar(
+            x=subset['Sleep_Quality'],
+            y=subset['Proportion'],
+            name=level,
+            marker_color=colors_perf[i]
+        ))
+        
+    # Define a consistent order for sleep quality for the x-axis
+    sleep_quality_order = ['Very Poor', 'Poor', 'Average', 'Good', 'Very Good']
+    
+    fig_perf.update_layout(
+        barmode='stack',
+        title='Relationship between Sleep Quality and Academic Performance',
+        xaxis_title='Sleep Quality',
+        yaxis_title='Proportion',
+        legend_title='Academic Performance',
+        xaxis={'categoryorder': 'array', 'categoryarray': sleep_quality_order}, # Set the order for the x-axis
+        height=500
+    )
 
-st.plotly_chart(fig_sleep_perf, use_container_width=True)
+    st.plotly_chart(fig_perf, use_container_width=True)
 
-st.markdown("---")
-st.caption("Data source: Publicly available student survey dataset.")
+else:
+    st.warning("Data could not be loaded. Please check the URL and network connection.")
