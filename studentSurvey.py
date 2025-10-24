@@ -2,105 +2,110 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
-# Set the page configuration
+# Set Streamlit page configuration
 st.set_page_config(
     page_title="Student Sleep and Educational Outcomes Analysis",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-## Data Loading
+# --- Data Loading and Caching ---
 @st.cache_data
 def load_data():
-    """Loads and caches the dataset."""
+    """Loads the dataset from the URL."""
     url = 'https://raw.githubusercontent.com/aleya566/ass-indv-sv/refs/heads/main/Student%20Insomnia%20and%20Educational%20Outcomes%20Dataset_version-2.csv'
     df = pd.read_csv(url)
-    
-    # Rename columns for easier use
-    df.columns = [
-        'Timestamp', 'Gender', 'Year of Study', 'Sleep Hours', 'Sleep Latency', 
-        'Sleep Quality', 'Insomnia Status', 'Morning Fatigue', 'Daytime Sleepiness', 
-        'Focus Difficulty', 'Emotional Control Difficulty', 'Stress Level', 
-        'Academic Stress', 'Academic Performance', 'Future Plans Impact', 
-        'Mental Health Impact', 'Mental Health Support'
-    ]
     return df
 
 df = load_data()
 
-st.title("Student Sleep and Educational Outcomes Analysis 🎓")
-st.markdown("This dashboard explores the distribution of key sleep and stress factors among students across different years of study and genders, using data from the **Student Insomnia and Educational Outcomes Dataset**.")
+# --- Streamlit App Title and Introduction ---
+st.title("📊 Student Sleep and Educational Outcomes Analysis")
+st.markdown("""
+This application visualizes key sleep and stress factors among students,
+exploring their distribution across different years of study and genders,
+and their relationship with academic performance.
+""")
 
-# Display a snippet of the data
-if st.checkbox('Show raw data', False):
-    st.subheader('Raw Data Sample')
-    st.dataframe(df.head())
-
-# Add a divider
 st.markdown("---")
 
-## 1. Stacked Bar Chart – Academic Stress Levels by Year of Study (Plotly)
+# --- Display Data Section ---
+if st.checkbox("Show Raw Data Sample", False):
+    st.subheader("Data Preview")
+    st.dataframe(df.head())
+    st.info(f"The dataset has **{len(df)}** rows and **{len(df.columns)}** columns.")
+
+st.markdown("---")
+
+# --- 1. Stacked Bar Chart – Stress Levels by Year of Study (Plotly Express) ---
 st.header("1. Academic Stress Levels by Year of Study")
-st.markdown("This plot shows the proportion of students in each year of study who reported different levels of academic stress.")
+st.markdown("""
+This plot shows the **proportion of students** in each **year of study** who reported different levels of academic stress.
+""")
 
-# Prepare the data (same as your original crosstab)
+# Crosstab equivalent for Plotly
 stress_year_crosstab = pd.crosstab(
-    df['Year of Study'], 
-    df['Academic Stress'], 
+    df['1. What is your year of study?'],
+    df['14. How would you describe your stress levels related to academic workload?'],
     normalize='index'
-).reset_index()
+).mul(100).round(2).stack().reset_index(name='Proportion (%)')
+stress_year_crosstab.columns = ['Year of Study', 'Stress Level', 'Proportion (%)']
 
-# Melt the dataframe for Plotly Express (suitable for stacked bar charts)
-stress_year_melted = stress_year_crosstab.melt(
-    id_vars='Year of Study',
-    value_vars=stress_year_crosstab.columns[1:],
-    var_name='Academic Stress Level',
-    value_name='Proportion'
-)
+# Define the order for better visualization
+stress_order = ['Extremely Low', 'Low', 'Moderate', 'High', 'Extremely High']
 
-# Plot using Plotly Express
+# Create the Plotly figure (Stacked Bar Chart)
 fig_stress_year = px.bar(
-    stress_year_melted,
+    stress_year_crosstab,
     x='Year of Study',
-    y='Proportion',
-    color='Academic Stress Level',
-    title='Academic Stress Levels by Year of Study (Proportion)',
-    labels={'Proportion': 'Proportion of Students', 'Year of Study': 'Year of Study'},
-    color_discrete_sequence=px.colors.sequential.Sunsetdark  # Use a nice color sequence
+    y='Proportion (%)',
+    color='Stress Level',
+    title='Academic Stress Levels by Year of Study',
+    labels={'Year of Study': 'Year of Study', 'Proportion (%)': 'Proportion (%)'},
+    category_orders={"Stress Level": stress_order},
+    # --- FIX: Changed Flare_r to Plasma (a valid sequential scale) ---
+    color_discrete_sequence=px.colors.sequential.Plasma 
 )
 
-# Customize layout
+# Customize the layout
 fig_stress_year.update_layout(
-    xaxis_title='Year of Study',
-    yaxis_title='Proportion',
-    legend_title='Stress Level',
-    barmode='stack',
-    hovermode="x unified"
+    xaxis={'tickangle': 45},
+    legend_title_text='Stress Level',
+    bargap=0.1
 )
 
 st.plotly_chart(fig_stress_year, use_container_width=True)
 
-# Add a divider
 st.markdown("---")
 
-## 2. Box Plot – Average Sleep Hours by Gender (Plotly)
+# --- 2. Box Plot – Sleep Hours by Gender (Plotly Express) ---
 st.header("2. Average Sleep Hours by Gender")
-st.markdown("This box plot visualizes the distribution of average sleep hours for male and female students.")
+st.markdown("""
+This **box plot** visualizes the **distribution** of average sleep hours for male and female students,
+showing median, quartiles, and outliers.
+""")
 
-# Plot using Plotly Express
+# Rename columns for simpler plotting
+df_sleep_gender = df.rename(columns={
+    '2. What is your gender?': 'Gender',
+    '4. On average, how many hours of sleep do you get on a typical day?': 'Average Sleep Hours'
+})
+
+# Create the Plotly figure (Box Plot)
 fig_sleep_gender = px.box(
-    df,
+    df_sleep_gender,
     x='Gender',
-    y='Sleep Hours',
+    y='Average Sleep Hours',
     color='Gender',
-    title='Distribution of Average Sleep Hours by Gender',
-    labels={'Sleep Hours': 'Average Sleep Hours', 'Gender': 'Gender'},
-    color_discrete_map={'Male': '#D84315', 'Female': '#6A1B9A'} # Custom colors
+    title='Average Sleep Hours by Gender',
+    category_orders={"Gender": ['Male', 'Female']},
+    # Using a suitable Plotly sequence
+    color_discrete_sequence=px.colors.sequential.Plotly3 
 )
 
-# Customize layout
+# Customize the layout
+fig_sleep_gender.update_traces(boxpoints='all', jitter=0.3, pointpos=-1.8) # Show all points as well
 fig_sleep_gender.update_layout(
     xaxis_title='Gender',
     yaxis_title='Average Sleep Hours',
@@ -109,50 +114,50 @@ fig_sleep_gender.update_layout(
 
 st.plotly_chart(fig_sleep_gender, use_container_width=True)
 
-# Add a divider
 st.markdown("---")
 
-## 3. Stacked Bar Chart - Sleep Quality vs Academic Performance (Plotly)
-st.header("3. Sleep Quality vs Academic Performance")
-st.markdown("This plot shows the relationship between self-reported sleep quality and academic performance.")
+# --- 3. Stacked Bar Chart - Sleep Quality vs Academic Performance (Plotly Express) ---
+st.header("3. Relationship between Sleep Quality and Academic Performance")
+st.markdown("""
+This plot shows the **relationship** between self-reported **sleep quality** and **academic performance**.
+""")
 
-# Prepare the data (same as your original crosstab)
+# Crosstab equivalent for Plotly
 cross_tab_perf = pd.crosstab(
-    df['Sleep Quality'], 
-    df['Academic Performance'], 
+    df['6. How would you rate the overall quality of your sleep?'],
+    df['15. How would you rate your overall academic performance (GPA or grades) in the past semester?'],
     normalize='index'
-).reset_index()
+).mul(100).round(2).stack().reset_index(name='Proportion (%)')
+cross_tab_perf.columns = ['Sleep Quality', 'Academic Performance', 'Proportion (%)']
 
-# Melt the dataframe for Plotly Express
-cross_tab_perf_melted = cross_tab_perf.melt(
-    id_vars='Sleep Quality',
-    value_vars=cross_tab_perf.columns[1:],
-    var_name='Academic Performance Rating',
-    value_name='Proportion'
-)
+# Define the order for better visualization
+sleep_quality_order = ['Very Poor', 'Poor', 'Neutral', 'Good', 'Very Good']
+performance_order = ['Poor', 'Fair', 'Good', 'Excellent']
 
-# Define a specific order for 'Sleep Quality' for better visualization
-sleep_quality_order = ['Excellent', 'Good', 'Fair', 'Poor', 'Very Poor']
-
-# Plot using Plotly Express
+# Create the Plotly figure (Stacked Bar Chart)
 fig_sleep_perf = px.bar(
-    cross_tab_perf_melted,
+    cross_tab_perf,
     x='Sleep Quality',
-    y='Proportion',
-    color='Academic Performance Rating',
-    title='Relationship between Sleep Quality and Academic Performance (Proportion)',
-    labels={'Proportion': 'Proportion of Students', 'Sleep Quality': 'Sleep Quality'},
-    category_orders={'Sleep Quality': sleep_quality_order},
-    color_discrete_sequence=px.colors.sequential.Aggrnyl # Another color sequence
+    y='Proportion (%)',
+    color='Academic Performance',
+    title='Relationship between Sleep Quality and Academic Performance',
+    labels={'Sleep Quality': 'Sleep Quality', 'Proportion (%)': 'Proportion (%)'},
+    category_orders={
+        "Sleep Quality": sleep_quality_order,
+        "Academic Performance": performance_order
+    },
+    # Using a suitable sequential colormap
+    color_discrete_sequence=px.colors.sequential.Plasma 
 )
 
-# Customize layout
+# Customize the layout
 fig_sleep_perf.update_layout(
-    xaxis_title='Sleep Quality',
-    yaxis_title='Proportion',
-    legend_title='Academic Performance',
-    barmode='stack',
-    hovermode="x unified"
+    xaxis={'tickangle': 45},
+    legend_title_text='Academic Performance',
+    bargap=0.1
 )
 
 st.plotly_chart(fig_sleep_perf, use_container_width=True)
+
+st.markdown("---")
+st.caption("Data source: Publicly available student survey dataset.")
