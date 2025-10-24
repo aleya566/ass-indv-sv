@@ -5,9 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 
-# --- Data Loading and Preprocessing (Common to all files) ---
-
-# Define common column names and mappings for objective 3
+# --- Column definitions and mappings ---
 COL_ACADEMIC_PERF_CAT = '15. How would you rate your overall academic performance (GPA or grades) in the past semester?'
 COL_ASSIGNMENT_IMPACT = '10. How would you describe the impact of insufficient sleep on your ability to complete assignments and meet deadlines?'
 COL_CONCENTRATION_CAT = '7. How often do you experience difficulty concentrating during lectures or studying due to lack of sleep?'
@@ -21,6 +19,8 @@ ACADEMIC_PERF_MAP = {'Poor': 1, 'Below Average': 2, 'Average': 3, 'Good': 4, 'Ex
 CONCENTRATION_MAP = {'Never': 0, 'Rarely': 1, 'Sometimes': 2, 'Often': 3, 'Always': 4}
 FATIGUE_MAP = {'Never': 0, 'Rarely': 1, 'Sometimes': 2, 'Often': 3, 'Always': 4}
 
+
+# --- Data Loading and Preprocessing (CORRECTED) ---
 @st.cache_data
 def load_data():
     """Loads and preprocesses the dataset."""
@@ -28,10 +28,18 @@ def load_data():
     try:
         df = pd.read_csv(url)
 
+        # 🚨 FIX: Using df.rename() prevents the Length Mismatch error
+        df.rename(columns={
+            COL_ACADEMIC_PERF_CAT: 'Academic_Performance',
+            COL_ASSIGNMENT_IMPACT: 'Assignment_Impact',
+            COL_CONCENTRATION_CAT: 'Concentration_Difficulty',
+            COL_FATIGUE_CAT: 'Fatigue_Frequency',
+        }, inplace=True)
+        
         # Map categorical to numerical for plotting
-        df[COL_ACADEMIC_PERF_NUM] = df[COL_ACADEMIC_PERF_CAT].map(ACADEMIC_PERF_MAP)
-        df[COL_CONCENTRATION_NUM] = df[COL_CONCENTRATION_CAT].map(CONCENTRATION_MAP)
-        df[COL_FATIGUE_NUM] = df[COL_FATIGUE_CAT].map(FATIGUE_MAP)
+        df[COL_ACADEMIC_PERF_NUM] = df['Academic_Performance'].map(ACADEMIC_PERF_MAP)
+        df[COL_CONCENTRATION_NUM] = df['Concentration_Difficulty'].map(CONCENTRATION_MAP)
+        df[COL_FATIGUE_NUM] = df['Fatigue_Frequency'].map(FATIGUE_MAP)
         
         return df
     except Exception as e:
@@ -53,9 +61,9 @@ def app():
     assignment_impact_order = ['No impact', 'Minor impact', 'Moderate impact', 'Major impact', 'Severe impact']
 
     fig_boxplot = px.box(
-        df, x=COL_ASSIGNMENT_IMPACT, y=COL_ACADEMIC_PERF_NUM, color=COL_ASSIGNMENT_IMPACT,
-        category_orders={COL_ASSIGNMENT_IMPACT: assignment_impact_order},
-        labels={COL_ASSIGNMENT_IMPACT: 'Impact of Insufficient Sleep on Assignments', COL_ACADEMIC_PERF_NUM: 'Academic Performance (Numeric Score)'},
+        df, x='Assignment_Impact', y=COL_ACADEMIC_PERF_NUM, color='Assignment_Impact',
+        category_orders={'Assignment_Impact': assignment_impact_order},
+        labels={'Assignment_Impact': 'Impact of Insufficient Sleep on Assignments', COL_ACADEMIC_PERF_NUM: 'Academic Performance (Numeric Score)'},
         color_discrete_sequence=px.colors.sequential.Agsunset, height=550
     )
 
@@ -63,8 +71,6 @@ def app():
     fig_boxplot.update_yaxes(tickvals=list(ACADEMIC_PERF_MAP.values()), ticktext=list(ACADEMIC_PERF_MAP.keys()))
     
     st.plotly_chart(fig_boxplot, use_container_width=True)
-
-    st.markdown("---")
 
     # 2. Heatmap: Average Academic Performance by Concentration Difficulty and Fatigue
     st.subheader("Average Academic Performance by Fatigue and Concentration Difficulty")
@@ -103,18 +109,16 @@ def app():
 
     st.plotly_chart(fig_heatmap, use_container_width=True)
 
-    st.markdown("---")
-
     # 3. Violin Plot - Academic Performance by Difficulty Concentrating
     st.subheader("Distribution of Academic Performance by Difficulty Concentrating Frequency")
 
     concentration_order = ['Never', 'Rarely', 'Sometimes', 'Often', 'Always']
 
     fig_violin = px.violin(
-        df, x=COL_CONCENTRATION_CAT, y=COL_ACADEMIC_PERF_NUM, color=COL_CONCENTRATION_CAT,
+        df, x='Concentration_Difficulty', y=COL_ACADEMIC_PERF_NUM, color='Concentration_Difficulty',
         box=True, points="outliers",
-        category_orders={COL_CONCENTRATION_CAT: concentration_order},
-        labels={COL_CONCENTRATION_CAT: 'Difficulty Concentrating Frequency', COL_ACADEMIC_PERF_NUM: 'Academic Performance (Numeric Score)'},
+        category_orders={'Concentration_Difficulty': concentration_order},
+        labels={'Concentration_Difficulty': 'Difficulty Concentrating Frequency', COL_ACADEMIC_PERF_NUM: 'Academic Performance (Numeric Score)'},
         color_discrete_sequence=px.colors.qualitative.Set1, height=550
     )
 
