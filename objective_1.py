@@ -4,14 +4,15 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-# --- Data Loading and Preprocessing (Common to all files) ---
+# --- Data Loading and Preprocessing (CORRECTED) ---
 @st.cache_data
 def load_data():
     """Loads and preprocesses the dataset."""
     url = 'https://raw.githubusercontent.com/aleya566/ass-indv-sv/refs/heads/main/Student%20Insomnia%20and%20Educational%20Outcomes%20Dataset.csv'
     try:
         df = pd.read_csv(url)
-        # Rename long columns for easier plotting
+        
+        # 🚨 FIX: Using df.rename() prevents the Length Mismatch error
         df.rename(columns={
             '1. What is your year of study?': 'Year_of_Study',
             '2. What is your gender?': 'Gender',
@@ -20,9 +21,10 @@ def load_data():
             '14. How would you describe your stress levels related to academic workload?': 'Academic_Stress_Level',
             '15. How would you rate your overall academic performance (GPA or grades) in the past semester?': 'Academic_Performance'
         }, inplace=True)
-        # Convert to numeric for box plot
+        
+        # Data cleaning/conversion
         df['Avg_Sleep_Hours'] = pd.to_numeric(df['Avg_Sleep_Hours'], errors='coerce')
-        return df.dropna(subset=['Avg_Sleep_Hours']) # Drop rows where sleep hours is not convertible
+        return df.dropna(subset=['Avg_Sleep_Hours'])
     except Exception as e:
         st.error(f"Error loading data: {e}")
         return pd.DataFrame()
@@ -31,7 +33,7 @@ def app():
     df = load_data()
     
     st.title('Objective 1: Sleep, Stress, and Educational Outcomes')
-    st.markdown("Exploring the distribution of key sleep and stress factors among students.")
+    st.markdown("Exploring the distribution of key sleep and stress factors among students across different years of study and genders.")
 
     if df.empty:
         return
@@ -44,6 +46,7 @@ def app():
         id_vars=['Year_of_Study'], var_name='Stress Level', value_name='Proportion'
     )
     
+    # Define orders for visual consistency
     stress_levels_order = sorted(df['Academic_Stress_Level'].unique(), key=lambda x: ['Low', 'Moderate', 'High', 'Very High'].index(x) if x in ['Low', 'Moderate', 'High', 'Very High'] else 99)
     colors = px.colors.qualitative.Plotly[:len(stress_levels_order)] 
 
@@ -61,12 +64,8 @@ def app():
     st.subheader("Average Sleep Hours by Gender")
     
     gender_order = ['Male', 'Female']
-    df_clean_sleep = df.copy()
-    df_clean_sleep['Gender'] = pd.Categorical(df_clean_sleep['Gender'], categories=gender_order, ordered=True)
-    df_clean_sleep.sort_values('Gender', inplace=True)
-    
     fig_sleep = px.box(
-        df_clean_sleep, x='Gender', y='Avg_Sleep_Hours', color='Gender',
+        df, x='Gender', y='Avg_Sleep_Hours', color='Gender',
         category_orders={"Gender": gender_order},
         labels={'Avg_Sleep_Hours': 'Average Sleep Hours', 'Gender': 'Gender'},
         color_discrete_sequence=px.colors.sequential.Agsunset, height=500
