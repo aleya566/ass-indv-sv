@@ -15,7 +15,7 @@ st.set_page_config(
 @st.cache_data
 def load_data():
     """Loads and caches the dataset."""
-    url = 'https://raw.githubusercontent.com/aleya566/ass-indv-sv/refs/heads/main/Student%20Insomnia%20and%20Educational%20Outcomes%20Dataset.csv'
+    url = 'https://raw.githubusercontent.com/aleya566/ass-indv-sv/refs/heads/main/Student%20Insomnia%20and%20Educational%20Outcomes%20Dataset_version-2.csv'
     df = pd.read_csv(url)
     
     # Rename columns for easier use
